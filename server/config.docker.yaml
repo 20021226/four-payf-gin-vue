@@ -24,7 +24,7 @@ redis:
     useCluster: false
     #使用集群模式addr和db默认无效
     addr: 177.7.0.14:6379
-    password: ""
+    password: "123456"
     db: 0
     clusterAddrs:
         - "177.7.0.14:7000"
@@ -36,7 +36,7 @@ redis-list:
     - name: cache           # 数据库的名称,注意: name 需要在 redis-list 中唯一
       useCluster: false     # 是否使用redis集群模式
       addr: 177.7.0.14:6379  # 使用集群模式addr和db默认无效
-      password: ""
+      password: "123456"
       db: 0
       clusterAddrs:
           - "177.7.0.14:7000"
@@ -99,12 +99,12 @@ captcha:
 # mysql connect configuration
 # 未初始化之前请勿手动修改数据库信息！！！如果一定要手动初始化请看（https://gin-vue-admin.com/docs/first_master）
 mysql:
-    path: ""
-    port: ""
+    path: "177.7.0.13"
+    port: "3306"
     config: ""
-    db-name: ""
-    username: ""
-    password: ""
+    db-name: "four_pay"
+    username: "root"
+    password: "123456"
     max-idle-conns: 10
     max-open-conns: 100
     log-mode: ""

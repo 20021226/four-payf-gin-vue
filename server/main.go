@@ -42,6 +42,8 @@ func initializeSystem() {
 	global.GVA_LOG = core.Zap() // 初始化zap日志库
 	zap.ReplaceGlobals(global.GVA_LOG)
 	global.GVA_DB = initialize.Gorm() // gorm连接数据库
+	// 注册基于上下文的所有权过滤插件
+	initialize.RegisterOwnerFilter()
 	initialize.Timer()
 	initialize.DBList()
 	initialize.SetupHandlers() // 注册全局函数

@@ -11,17 +11,29 @@ networks:
 # 设置mysql，redis持久化保存
 volumes:
   mysql:
+    driver: local
+    driver_opts:
+      device: /data/mysql
+      o: bind
+      type: none
   redis:
+    driver: local
+    driver_opts:
+      device: /data/redis
+      o: bind
+      type: none
   
 services:
   web:
     build:
-      context: ../../web
+      context: ../web
       dockerfile: ./Dockerfile
     container_name: gva-web
     restart: always
     ports:
       - '8080:8080'
+      - '80:80'
+      - '443:443'
     depends_on:
       - server
     command: [ 'nginx-debug', '-g', 'daemon off;' ]
@@ -31,7 +43,7 @@ services:
 
   server:
     build:
-      context: ../../server
+      context: ../server
       dockerfile: ./Dockerfile
     container_name: gva-server
     restart: always
@@ -57,12 +69,10 @@ services:
     ports:
       - "13306:3306"  # host物理直接映射端口为13306
     environment:
-      #MYSQL_ROOT_PASSWORD: 'Aa@6447985' # root管理员用户密码
-      MYSQL_DATABASE: 'qmPlus' # 初始化启动时要创建的数据库的名称
-      MYSQL_USER: 'gva'
-      MYSQL_PASSWORD: 'Aa@6447985'
+      MYSQL_ROOT_PASSWORD: '123456' # root管理员用户密码
+      MYSQL_DATABASE: 'four_pay' # 初始化启动时要创建的数据库的名称
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "gva", "-pAa@6447985"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -75,11 +85,12 @@ services:
   redis:
     image: redis:6.0.6
     container_name: gva-redis # 容器名
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "123456"]
     restart: always
     ports:
       - '16379:6379'
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      test: ["CMD-SHELL", "redis-cli -a 123456 ping | grep PONG || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -88,3 +99,15 @@ services:
     networks:
       network:
         ipv4_address: 177.7.0.14
+
+  ocr:
+    build:
+      context: ../ocr-server
+      dockerfile: ./Dockerfile
+    container_name: ocr
+    restart: always
+    ports:
+      - '8081:8081'
+    networks:
+      network:
+        ipv4_address: 177.7.0.15

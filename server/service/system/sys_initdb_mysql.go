@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-
 	"github.com/flipped-aurora/gin-vue-admin/server/config"
 	"github.com/gookit/color"
+	"path/filepath"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 
@@ -86,10 +85,12 @@ func (h MysqlInitHandler) InitData(ctx context.Context, inits initSlice) error {
 		}
 		if n, err := init.InitializeData(next); err != nil {
 			color.Info.Printf(InitDataFailed, Mysql, init.InitializerName(), err)
+			color.Info.Printf("init data fial")
 			return err
 		} else {
 			next = n
 			color.Info.Printf(InitDataSuccess, Mysql, init.InitializerName())
+			color.Info.Printf("init data success")
 		}
 	}
 	color.Info.Printf(InitSuccess, Mysql)

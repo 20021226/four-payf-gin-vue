@@ -152,6 +152,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "888", V1: "/sysOperationRecord/getSysOperationRecordList", V2: "GET"},
 		{Ptype: "p", V0: "888", V1: "/sysOperationRecord/deleteSysOperationRecord", V2: "DELETE"},
 		{Ptype: "p", V0: "888", V1: "/sysOperationRecord/deleteSysOperationRecordByIds", V2: "DELETE"},
+		{Ptype: "p", V0: "888", V1: "/sysOperationRecord/deleteSysOperationRecordByIds", V2: "DELETE"},
 
 		{Ptype: "p", V0: "888", V1: "/email/emailTest", V2: "POST"},
 		{Ptype: "p", V0: "888", V1: "/email/sendEmail", V2: "POST"},
@@ -239,6 +240,14 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "8881", V1: "/customer/customer", V2: "GET"},
 		{Ptype: "p", V0: "8881", V1: "/customer/customerList", V2: "GET"},
 		{Ptype: "p", V0: "8881", V1: "/user/getUserInfo", V2: "GET"},
+
+		{Ptype: "p", V0: "8881", V1: "/merUser/createMerUser", V2: "POST"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/deleteMerUser", V2: "DELETE"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/deleteMerUserByIds", V2: "DELETE"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/updateMerUser", V2: "PUT"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/findMerUser", V2: "GET"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/getMerUserList", V2: "GET"},
+		{Ptype: "p", V0: "8881", V1: "/merUser/getMerUserPublic", V2: "GET"},
 
 		{Ptype: "p", V0: "9528", V1: "/user/admin_register", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/api/createApi", V2: "POST"},
