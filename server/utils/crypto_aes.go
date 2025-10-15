@@ -72,3 +72,14 @@ func DecryptAESGCM(encrypted *EncryptedData, key []byte) (string, error) {
 
 	return string(plaintext), nil
 }
+
+// GenerateAESKey 生成指定字节长度的 AES 密钥，并以 Base64 字符串返回
+// length 推荐使用 16/24/32 对应 AES-128/192/256
+func GenerateAESKey(length int) (string, error) {
+	key := make([]byte, length)
+	if _, err := rand.Read(key); err != nil {
+		return "", err
+	}
+	// 使用标准 Base64 编码，便于存储与传输
+	return base64.StdEncoding.EncodeToString(key), nil
+}

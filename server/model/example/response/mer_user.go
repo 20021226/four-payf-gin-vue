@@ -1,6 +1,8 @@
 package response
 
-import "time"
+import (
+	"time"
+)
 
 // MerUserListItem 用于列表接口的精简返回结构，隐藏敏感字段
 type MerUserListItem struct {
@@ -13,4 +15,11 @@ type MerUserListItem struct {
 	Remarks    *string    `json:"remarks" gorm:"column:remarks"`
 	QrCode     *string    `json:"qrCode" gorm:"column:qr_code"`
 	Password   *string    `json:"password" gorm:"column:password"`
+}
+
+type PaymentQrCodeResponse struct {
+	QrcodeCode *string  `json:"qrcodeCode"`
+	Amount     *float64 `json:"amount"`
+	CreateTime *string  `json:"createTime"`
+	OrderId    *string  `json:"orderId"`
 }

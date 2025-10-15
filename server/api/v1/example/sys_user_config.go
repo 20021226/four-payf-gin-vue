@@ -6,6 +6,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	exampleReq "github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
 	exampleResp "github.com/flipped-aurora/gin-vue-admin/server/model/example/response"
+	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -102,6 +103,15 @@ func (sysUserConfigApi *SysUserConfigApi) UpdateSysUserConfig(c *gin.Context) {
 	err := c.ShouldBindJSON(&sysUserConfig)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if sysUserConfig.Name != nil && *sysUserConfig.Name == "encrypt_key" && sysUserConfig.Value == nil {
+		key, err := utils.GenerateAESKey(32)
+		if err != nil {
+			response.FailWithMessage("生成加密密钥失败:"+err.Error(), c)
+			return
+		}
+		sysUserConfig.Value = &key
 		return
 	}
 	err = sysUserConfigService.UpdateSysUserConfig(ctx, sysUserConfig)

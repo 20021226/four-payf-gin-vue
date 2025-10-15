@@ -1,22 +1,41 @@
 package xingyi
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "net/url"
-    "strings"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
 
-    "github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"go.uber.org/zap"
 )
 
 // RedisCookieKeyPrefix 统一的 Redis 键前缀，可集中修改
 const RedisCookieKeyPrefix = "xingyi_cookie"
 
+// PayListResponse 支付列表响应结构
+type PayListResponse struct {
+	RSPCOD   string    `json:"RSPCOD"`
+	RSPMSG   string    `json:"RSPMSG"`
+	ROWLIST  []OrderRow `json:"ROWLIST"`
+	TOTAL    string    `json:"TOTAL"`
+}
+
+// OrderRow 订单行数据结构
+type OrderRow struct {
+	OrderTime   string `json:"ORDER_TIME"`   // 订单时间，格式：2025-10-08 17:04:35
+	RecTxamt    string `json:"REC_TXAMT"`    // 实收金额
+	OrderNo     string `json:"ORDER_NO"`     // 订单号
+	OrderStatus string `json:"ORDER_STATUS"` // 订单状态
+	PayChannel  string `json:"PAY_CHANNEL"`  // 支付渠道
+	Txamt       string `json:"TXAMT"`        // 交易金额
+}
+
 // redisCookieKey 生成具体的 Redis 键名
 func redisCookieKey(merId string) string {
-    return fmt.Sprintf("%s:%s", RedisCookieKeyPrefix, merId)
+	return fmt.Sprintf("%s:%s", RedisCookieKeyPrefix, merId)
 }
 
 // Service orchestrates xingyi flows
@@ -114,27 +133,27 @@ func (s *Service) GetLoginResult(username, password, merId string) (string, erro
 		"NOW_TIME": fmt.Sprintf("%d", now),
 		"usrpwd":   encPwd,
 	}
-    body, resp, err := s.c.PostForm("https://xypc.postar.cn/720005.mer", form)
-    if err != nil {
-        return "", err
-    }
-    // 合并响应中的 Cookie 到客户端，以保持本次会话
-    for _, ck := range resp.Cookies() {
-        s.c.SetCookie(ck.Name, ck.Value)
-    }
+	body, resp, err := s.c.PostForm("https://xypc.postar.cn/720005.mer", form)
+	if err != nil {
+		return "", err
+	}
+	// 合并响应中的 Cookie 到客户端，以保持本次会话
+	for _, ck := range resp.Cookies() {
+		s.c.SetCookie(ck.Name, ck.Value)
+	}
 
-    // 将本次会话 Cookie 保存到 Redis，键：xingyi_cookie:<merId>
-    // 使用 Cookies 结构体统一存储格式
-    cookies := Cookies{
-        CookieSession1: s.c.Cookies["$cookiesession1"],
-        AcwTc:          s.c.Cookies["acw_tc"],
-        JSessionID:     s.c.Cookies["JSESSIONID"],
-    }
-    // 仅当 Redis 已初始化时写入
-    if global.GVA_REDIS != nil {
-        b, _ := json.Marshal(cookies)
-        _ = global.GVA_REDIS.Set(context.Background(), redisCookieKey(merId), string(b), 0).Err()
-    }
+	// 将本次会话 Cookie 保存到 Redis，键：xingyi_cookie:<merId>
+	// 使用 Cookies 结构体统一存储格式
+	cookies := Cookies{
+		CookieSession1: s.c.Cookies["$cookiesession1"],
+		AcwTc:          s.c.Cookies["acw_tc"],
+		JSessionID:     s.c.Cookies["JSESSIONID"],
+	}
+	// 仅当 Redis 已初始化时写入
+	if global.GVA_REDIS != nil {
+		b, _ := json.Marshal(cookies)
+		_ = global.GVA_REDIS.Set(context.Background(), redisCookieKey(merId), string(b), 0).Err()
+	}
 	var j map[string]any
 	if err := ParseJSON(body, &j); err != nil {
 		return string(body), nil
@@ -172,21 +191,21 @@ func (s *Service) GetAccessToken(sText string) (string, error) {
 
 // GetPayList replicates mergeCodeAndCardTradeList2.mers query
 func (s *Service) GetPayList(token string, startTime string, endTime string, merId string) ([]byte, error) {
-    // 在请求之前，按 merId 从 Redis 读取并应用 Cookie，确保使用同一会话
-    if global.GVA_REDIS != nil {
-        val, err := global.GVA_REDIS.Get(context.Background(), redisCookieKey(merId)).Result()
-        if err == nil && val != "" {
-            var cookies Cookies
-            if jsonErr := json.Unmarshal([]byte(val), &cookies); jsonErr == nil {
-                cookies.ApplyTo(s.c)
-            }
-        }
-    }
-    form := map[string]string{
-        "PAGENUM":                "1",
-        "NUMPERPAG":              "10",
-        "ORDER_NO":               "",
-        "CUST_ID":                "",
+	// 在请求之前，按 merId 从 Redis 读取并应用 Cookie，确保使用同一会话
+	if global.GVA_REDIS != nil {
+		val, err := global.GVA_REDIS.Get(context.Background(), redisCookieKey(merId)).Result()
+		if err == nil && val != "" {
+			var cookies Cookies
+			if jsonErr := json.Unmarshal([]byte(val), &cookies); jsonErr == nil {
+				cookies.ApplyTo(s.c)
+			}
+		}
+	}
+	form := map[string]string{
+		"PAGENUM":                "1",
+		"NUMPERPAG":              "10",
+		"ORDER_NO":               "",
+		"CUST_ID":                "",
 		"BUS_CUST_ID":            "",
 		"BUS_NAME":               "",
 		"PAY_CHANNEL":            "",
@@ -219,4 +238,101 @@ func (s *Service) GetPayList(token string, startTime string, endTime string, mer
 		return nil, err
 	}
 	return body, nil
+}
+
+// GetCheckResult 检查支付列表中是否有符合条件的订单
+// 检查条件：1. ORDER_TIME 在 startTime 和 endTime 之间  2. amount 等于 REC_TXAMT
+func (s *Service) GetCheckResult(body string, startTime, endTime time.Time, amount string) (bool, error) {
+	// 先检查 JSON 中是否包含 ROWLIST 字段
+	if !strings.Contains(body, "ROWLIST") {
+		global.GVA_LOG.Warn("JSON 数据中缺少 ROWLIST 字段", zap.String("body", body))
+		return false, nil
+	}
+	
+	// 解析 JSON 数据
+	var response PayListResponse
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		global.GVA_LOG.Error("解析支付列表 JSON 失败", zap.Error(err), zap.String("body", body))
+		return false, fmt.Errorf("解析 JSON 失败: %w", err)
+	}
+
+	// 检查响应状态
+	if response.RSPCOD != "00000" {
+		global.GVA_LOG.Warn("支付列表查询失败", 
+			zap.String("RSPCOD", response.RSPCOD), 
+			zap.String("RSPMSG", response.RSPMSG))
+		return false, fmt.Errorf("查询失败: %s", response.RSPMSG)
+	}
+
+	global.GVA_LOG.Info("开始检查支付列表", 
+		zap.Int("订单总数", len(response.ROWLIST)),
+		zap.String("目标金额", amount),
+		zap.Time("开始时间", startTime),
+		zap.Time("结束时间", endTime))
+
+	// 遍历订单列表进行检查
+	for i, order := range response.ROWLIST {
+		global.GVA_LOG.Debug("检查订单", 
+			zap.Int("索引", i),
+			zap.String("订单号", order.OrderNo),
+			zap.String("订单时间", order.OrderTime),
+			zap.String("实收金额", order.RecTxamt),
+			zap.String("订单状态", order.OrderStatus))
+
+		// 1. 检查金额是否匹配
+		if !s.checkAmount(order.RecTxamt, amount) {
+			global.GVA_LOG.Debug("金额不匹配", 
+				zap.String("订单号", order.OrderNo),
+				zap.String("实收金额", order.RecTxamt),
+				zap.String("目标金额", amount))
+			continue
+		}
+
+		// 2. 检查时间是否在范围内
+		if !s.checkTimeRange(order.OrderTime, startTime, endTime) {
+			global.GVA_LOG.Debug("时间不在范围内", 
+				zap.String("订单号", order.OrderNo),
+				zap.String("订单时间", order.OrderTime))
+			continue
+		}
+
+		// 找到符合条件的订单
+		global.GVA_LOG.Info("找到符合条件的订单", 
+			zap.String("订单号", order.OrderNo),
+			zap.String("订单时间", order.OrderTime),
+			zap.String("实收金额", order.RecTxamt),
+			zap.String("订单状态", order.OrderStatus),
+			zap.String("支付渠道", order.PayChannel))
+		
+		return true, nil
+	}
+
+	global.GVA_LOG.Info("未找到符合条件的订单", 
+		zap.String("目标金额", amount),
+		zap.Time("开始时间", startTime),
+		zap.Time("结束时间", endTime))
+	
+	return false, nil
+}
+
+// checkAmount 检查金额是否匹配
+func (s *Service) checkAmount(recTxamt, targetAmount string) bool {
+	// 直接比较字符串
+	return recTxamt == targetAmount
+}
+
+// checkTimeRange 检查时间是否在指定范围内
+func (s *Service) checkTimeRange(orderTimeStr string, startTime, endTime time.Time) bool {
+	// 解析订单时间，格式：2025-10-08 17:04:35
+	orderTime, err := time.Parse("2006-01-02 15:04:05", orderTimeStr)
+	if err != nil {
+		global.GVA_LOG.Error("解析订单时间失败", 
+			zap.String("orderTime", orderTimeStr),
+			zap.Error(err))
+		return false
+	}
+	
+	// 检查时间是否在范围内（包含边界）
+	return (orderTime.Equal(startTime) || orderTime.After(startTime)) && 
+		   (orderTime.Equal(endTime) || orderTime.Before(endTime))
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	exampleReq "github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
+	"reflect"
 )
 
 type SysUserConfigService struct{}
@@ -91,7 +92,60 @@ func (sysUserConfigService *SysUserConfigService) GetSysUserConfigInfoList(ctx c
 	err = db.Find(&sysUserConfigs).Error
 	return sysUserConfigs, total, err
 }
-func (sysUserConfigService *SysUserConfigService) GetSysUserConfigPublic(ctx context.Context) {
-	// 此方法为获取数据源定义的数据
-	// 请自行实现
+
+// mapRowsToSysUserConfig 将数据库的 name/value 行根据结构体字段的 `json` tag 映射到 SysUserConfig
+// 只要在 SysUserConfig 中新增字段并设置相应的 json tag，即可自动映射，无需改动此方法
+func mapRowsToSysUserConfig(rows []example.SysUserConfig) SysUserConfig {
+	kv := make(map[string]string, len(rows))
+	for _, r := range rows {
+		if r.Name == nil || r.Value == nil {
+			continue
+		}
+		kv[*r.Name] = *r.Value
+	}
+
+	var out SysUserConfig
+	rv := reflect.ValueOf(&out).Elem()
+	rt := rv.Type()
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
+		tag := f.Tag.Get("json")
+		if tag == "" {
+			continue
+		}
+		if v, ok := kv[tag]; ok {
+			rv.Field(i).SetString(v)
+		}
+	}
+	return out
+}
+
+// GetSimpleConfigBySysUserID 根据 sys_user_id 返回简化的配置结构
+// 会读取该用户的配置项，并将 name=allow_request_url/encrypt_key 的值赋入结构体
+func (sysUserConfigService *SysUserConfigService) GetConfigBySysUserID(ctx context.Context, sysUserID int64) (SysUserConfig, error) {
+	db := global.GVA_DB.WithContext(ctx).Model(&example.SysUserConfig{})
+
+	// 可选：从上下文读取 form_id 进行过滤（与列表查询保持一致）
+	if v := ctx.Value("form_id"); v != nil {
+		if fid, ok := v.(int32); ok && fid > 0 {
+			db = db.Where("form_id = ?", fid)
+		}
+	}
+
+	var rows []example.SysUserConfig
+	if err := db.Select("name, value").Where("sys_user_id = ?", sysUserID).Find(&rows).Error; err != nil {
+		return SysUserConfig{}, err
+	}
+	out := mapRowsToSysUserConfig(rows)
+	return out, nil
+}
+
+type SysUserConfig struct {
+	AllowRequestUrl string `json:"allow_request_url"`
+	EncryptKey      string `json:"encrypt_key"`
+}
+
+// GetSysUserConfigPublic 获取公共配置（form_id=0）
+func (sysUserConfigService *SysUserConfigService) GetSysUserConfigPublic(ctx context.Context) (SysUserConfig, error) {
+	return sysUserConfigService.GetConfigBySysUserID(ctx, 0)
 }
