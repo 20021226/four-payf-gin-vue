@@ -24,6 +24,10 @@ func Timer() {
 			fmt.Println("add timer error:", err)
 		}
 
+		// 初始化健康检查任务
+		task.InitHealthChecker()
+		task.StartHealthCheckTask()
+
 		// 其他定时任务定在这里 参考上方使用方法
 
 		//_, err := global.GVA_Timer.AddTaskByFunc("定时任务标识", "corn表达式", func() {

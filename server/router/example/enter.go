@@ -10,6 +10,7 @@ type RouterGroup struct {
 	AttachmentCategoryRouter
 	MerUserRouter
 	SysUserConfigRouter
+	MerPayOrderRouter
 }
 
 var (
@@ -18,4 +19,5 @@ var (
 	attachmentCategoryApi       = api.ApiGroupApp.ExampleApiGroup.AttachmentCategoryApi
 	merUserApi                  = api.ApiGroupApp.ExampleApiGroup.MerUserApi
 	sysUserConfigApi            = api.ApiGroupApp.ExampleApiGroup.SysUserConfigApi
+	merPayOrderApi              = api.ApiGroupApp.ExampleApiGroup.MerPayOrderApi
 )

@@ -3,6 +3,25 @@
   <div>
     <div class="gva-search-box">
       <el-form ref="elSearchFormRef" :inline="true" :model="searchInfo" class="demo-form-inline" @keyup.enter="onSubmit">
+            <el-form-item label="编号" prop="id">
+  <el-input v-model="searchInfo.id" placeholder="搜索条件" />
+</el-form-item>
+            
+            <el-form-item label="接入类型" prop="merType">
+  <el-select v-model="searchInfo.merType" clearable placeholder="请选择">
+    <el-option key="0" label="星驿" value="0"></el-option>
+    <el-option key="1" label="富掌柜" value="1"></el-option>
+    <el-option key="2" label="先享后付" value="2"></el-option>
+  </el-select>
+</el-form-item>
+            
+            <el-form-item label="商户名称" prop="merName">
+  <el-input v-model="searchInfo.merName" placeholder="搜索条件" />
+</el-form-item>
+            
+            <el-form-item label="账号" prop="userName">
+  <el-input v-model="searchInfo.userName" placeholder="搜索条件" />
+</el-form-item>
 
         <template v-if="showAllQuery">
           <!-- 将需要控制显示状态的查询条件添加到此范围内 -->
@@ -32,13 +51,16 @@
         >
         <el-table-column type="selection" width="55" />
         
-            <el-table-column align="left" label="id字段" prop="id" width="120" />
+            <el-table-column align="left" label="编号" prop="id" width="120" />
 
             <el-table-column align="left" label="接入类型" prop="merType" width="120">
               <template #default="scope">
                 {{ merTypeLabel(scope.row.merType) }}
               </template>
             </el-table-column>
+            
+            <el-table-column align="left" label="商户名称" prop="merName" width="120" />
+            
 
             <el-table-column align="left" label="账号" prop="userName" width="120" />
 
@@ -50,6 +72,8 @@
                 </el-button>
               </template>
             </el-table-column>
+
+
 
             
             <el-table-column align="left" label="收款码" prop="qrCode" width="140">
@@ -68,13 +92,24 @@
 <!--            <el-table-column align="left" label="请求密钥" prop="key" width="120" />-->
 
             <!-- <el-table-column align="left" label="是否删除(1: 删除 0:未删除)" prop="isDel" width="120" /> -->
-
+            <el-table-column align="left" label="金额整数下限" prop="minAmount" width="120" />
+            <el-table-column align="left" label="金额整数上限" prop="maxAmount" width="120" />
+            <el-table-column align="left" label="金额小数下限" prop="minDecimalAmount" width="120">
+              <template #default="scope">
+                {{ scope.row.minDecimalAmount ? integerToDecimal(scope.row.minDecimalAmount).toFixed(2) : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column align="left" label="金额小数上限" prop="maxDecimalAmount" width="120">
+              <template #default="scope">
+                {{ scope.row.maxDecimalAmount ? integerToDecimal(scope.row.maxDecimalAmount).toFixed(2) : '-' }}
+              </template>
+            </el-table-column>
             <el-table-column align="left" label="创建时间" prop="createTime" width="180">
    <template #default="scope">{{ formatDate(scope.row.createTime) }}</template>
 </el-table-column>
-            <el-table-column align="left" label="更新时间" prop="updateTime" width="180">
+            <!-- <el-table-column align="left" label="更新时间" prop="updateTime" width="180">
    <template #default="scope">{{ formatDate(scope.row.updateTime) }}</template>
-</el-table-column>
+</el-table-column> -->
             <el-table-column align="left" label="备注" prop="remarks" width="120" />
         <!-- 末尾添加“是否启用”开关列，无需打开详情即可切换 -->
         <el-table-column align="center" label="是否启用" fixed="right" width="120">
@@ -141,6 +176,67 @@
             <el-form-item label="是否启用:" prop="state">
     <el-switch v-model="formData.state" active-color="#13ce66" inactive-color="#ff4949" active-text="是" inactive-text="否" clearable ></el-switch>
 </el-form-item>
+            <el-form-item label="允许最小整数金额:" prop="minAmount">
+              <el-input-number v-model="formData.minAmount" :min="0" :step="1" :precision="0" controls-position="right" placeholder="请输入最小整数金额" />
+            </el-form-item>
+            <el-form-item label="允许最大整数金额:" prop="maxAmount">
+              <el-input-number v-model="formData.maxAmount" :min="0" :step="1" :precision="0" controls-position="right" placeholder="请输入最大整数金额" />
+            </el-form-item>
+            
+            <el-form-item label="允许最小小数金额:" prop="minDecimalAmountDisplay">
+              <div class="decimal-amount-input">
+                <el-input-number 
+                  v-model="formData.minDecimalAmountDisplay" 
+                  :min="0.01" 
+                  :max="0.99" 
+                  :step="0.01" 
+                  :precision="2" 
+                  controls-position="right" 
+                  placeholder="请输入最小小数金额" 
+                  style="width: 200px; margin-bottom: 10px;"
+                />
+                <div class="slider-container">
+                  <span class="slider-label">0.01</span>
+                  <el-slider 
+                    v-model="formData.minDecimalAmountDisplay" 
+                    :min="0.01" 
+                    :max="0.99" 
+                    :step="0.01" 
+                    :format-tooltip="(val) => `${val.toFixed(2)}`"
+                    style="flex: 1; margin: 0 15px;"
+                  />
+                  <span class="slider-label">0.99</span>
+                </div>
+              </div>
+            </el-form-item>
+            
+            <el-form-item label="允许最大小数金额:" prop="maxDecimalAmountDisplay">
+              <div class="decimal-amount-input">
+                <el-input-number 
+                  v-model="formData.maxDecimalAmountDisplay" 
+                  :min="0.01" 
+                  :max="0.99" 
+                  :step="0.01" 
+                  :precision="2" 
+                  controls-position="right" 
+                  placeholder="请输入最大小数金额" 
+                  style="width: 200px; margin-bottom: 10px;"
+                />
+                <div class="slider-container">
+                  <span class="slider-label">0.01</span>
+                  <el-slider 
+                    v-model="formData.maxDecimalAmountDisplay" 
+                    :min="0.01" 
+                    :max="0.99" 
+                    :step="0.01" 
+                    :format-tooltip="(val) => `${val.toFixed(2)}`"
+                    style="flex: 1; margin: 0 15px;"
+                  />
+                  <span class="slider-label">0.99</span>
+                </div>
+              </div>
+            </el-form-item>
+       
             <el-form-item label="收款码:" prop="qrCode">
               <div class="flex items-center gap-3">
                 <el-upload
@@ -178,7 +274,7 @@
 
     <el-drawer destroy-on-close :size="appStore.drawerSize" v-model="detailShow" :show-close="true" :before-close="closeDetailShow" title="查看">
             <el-descriptions :column="1" border>
-                    <el-descriptions-item label="id字段">
+                    <el-descriptions-item label="编号">
     {{ detailForm.id }}
 </el-descriptions-item>
                     <el-descriptions-item label="接入类型">
@@ -195,6 +291,18 @@
                     </el-descriptions-item>
                     <el-descriptions-item label="是否启用">
     {{ detailForm.state }}
+</el-descriptions-item>
+                    <el-descriptions-item label="最大整数金额">
+    {{ detailForm.maxAmount }}
+</el-descriptions-item>
+                    <el-descriptions-item label="最小整数金额">
+    {{ detailForm.minAmount }}
+</el-descriptions-item>
+                    <el-descriptions-item label="最小小数金额">
+    {{ detailForm.minDecimalAmount ? integerToDecimal(detailForm.minDecimalAmount).toFixed(2) : '-' }}
+</el-descriptions-item>
+                    <el-descriptions-item label="最大小数金额">
+    {{ detailForm.maxDecimalAmount ? integerToDecimal(detailForm.maxDecimalAmount).toFixed(2) : '-' }}
 </el-descriptions-item>
                     <el-descriptions-item label="收款码">
                       <el-image
@@ -226,6 +334,25 @@
 
   </div>
 </template>
+
+<style scoped>
+.decimal-amount-input {
+  width: 100%;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.slider-label {
+  font-size: 12px;
+  color: #606266;
+  min-width: 30px;
+  text-align: center;
+}
+</style>
 
 <script setup>
 import {
@@ -270,13 +397,32 @@ const formData = ref({
             state: false,
             qrCode: '',
             key: '',
+            maxAmount: null,
+            minAmount: null,
+            maxDecimalAmount: null,
+            minDecimalAmount: null,
+            maxDecimalAmountDisplay: null, // 前端显示用的小数值
+            minDecimalAmountDisplay: null, // 前端显示用的小数值
             remarks: '',
         })
+
+// 数据转换函数：小数转整数（前端 -> 后端）
+const decimalToInteger = (decimalValue) => {
+  if (decimalValue === null || decimalValue === undefined) return null
+  return Math.round(decimalValue * 100)
+}
+
+// 数据转换函数：整数转小数（后端 -> 前端）
+const integerToDecimal = (integerValue) => {
+  if (integerValue === null || integerValue === undefined) return null
+  return integerValue / 100
+}
 
 // 接入类型选项与映射（0: 星驿，1: 富掌柜）
 const merTypeOptions = [
   { label: '星驿', value: '0' },
-  { label: '富掌柜', value: '1' }
+  { label: '富掌柜', value: '1' },
+  { label: '先享后付', value: '2' }
 ]
 const merTypeLabel = (val) => {
   const code = val == null ? '' : String(val)
@@ -288,6 +434,48 @@ const merTypeLabel = (val) => {
 
 // 验证规则
 const rule = reactive({
+  minDecimalAmountDisplay: [
+    {
+      validator: (rule, value, callback) => {
+        if (value === null || value === undefined || value === '') {
+          callback() // 允许为空
+          return
+        }
+        if (value < 0.01 || value > 0.99) {
+          callback(new Error('最小小数金额必须在0.01-0.99之间'))
+          return
+        }
+        // 检查是否大于最大小数金额
+        if (formData.value.maxDecimalAmountDisplay !== null && formData.value.maxDecimalAmountDisplay !== undefined && value > formData.value.maxDecimalAmountDisplay) {
+          callback(new Error('最小小数金额不能大于最大小数金额'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ],
+  maxDecimalAmountDisplay: [
+    {
+      validator: (rule, value, callback) => {
+        if (value === null || value === undefined || value === '') {
+          callback() // 允许为空
+          return
+        }
+        if (value < 0.01 || value > 0.99) {
+          callback(new Error('最大小数金额必须在0.01-0.99之间'))
+          return
+        }
+        // 检查是否小于最小小数金额
+        if (formData.value.minDecimalAmountDisplay !== null && formData.value.minDecimalAmountDisplay !== undefined && value < formData.value.minDecimalAmountDisplay) {
+          callback(new Error('最大小数金额不能小于最小小数金额'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
 })
 
 const elFormRef = ref()
@@ -312,6 +500,9 @@ const onSubmit = () => {
     page.value = 1
     if (searchInfo.value.state === ""){
         searchInfo.value.state=null
+    }
+    if (searchInfo.value.merType === "" || searchInfo.value.merType === undefined){
+        searchInfo.value.merType=null
     }
     getTableData()
   })
@@ -416,6 +607,9 @@ const updateMerUserFunc = async(row) => {
         // 将后端返回的类型值统一为字符串（"0"/"1"）以适配下拉框
         const data = { ...res.data }
         data.merType = data.merType == null ? '' : String(data.merType)
+        // 将后端整数值转换为前端小数显示值
+        data.minDecimalAmountDisplay = integerToDecimal(data.minDecimalAmount)
+        data.maxDecimalAmountDisplay = integerToDecimal(data.maxDecimalAmount)
         formData.value = data
         dialogFormVisible.value = true
     }
@@ -456,6 +650,12 @@ const closeDialog = () => {
         state: false,
         qrCode: '',
         key: '',
+        maxAmount: null,
+        minAmount: null,
+        maxDecimalAmount: null,
+        minDecimalAmount: null,
+        maxDecimalAmountDisplay: null,
+        minDecimalAmountDisplay: null,
         remarks: '',
         }
 }
@@ -473,6 +673,27 @@ const enterDialog = async () => {
               // 保证提交的接入类型为代码字符串 "0"/"1"
               if (payload.merType != null) {
                 payload.merType = String(payload.merType)
+              }
+              // 规范金额为整数或空
+              const toIntOrNull = (v) => v == null || v === '' ? null : Math.trunc(Number(v))
+              payload.maxAmount = toIntOrNull(payload.maxAmount)
+              payload.minAmount = toIntOrNull(payload.minAmount)
+              if (payload.maxAmount != null && payload.minAmount != null && payload.minAmount > payload.maxAmount) {
+                ElMessage.error('最小金额不能大于最大金额')
+                btnLoading.value = false
+                return
+              }
+              
+              // 将前端小数显示值转换为后端整数值
+              payload.maxDecimalAmount = decimalToInteger(payload.maxDecimalAmountDisplay)
+              payload.minDecimalAmount = decimalToInteger(payload.minDecimalAmountDisplay)
+              // 删除Display字段，不发送给后端
+              delete payload.maxDecimalAmountDisplay
+              delete payload.minDecimalAmountDisplay
+              if (payload.maxDecimalAmount != null && payload.minDecimalAmount != null && payload.minDecimalAmount > payload.maxDecimalAmount) {
+                ElMessage.error('最小小数金额不能大于最大小数金额')
+                btnLoading.value = false
+                return
               }
               switch (type.value) {
                 case 'create':

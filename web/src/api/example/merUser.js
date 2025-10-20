@@ -108,3 +108,47 @@ export const getMerUserPublic = () => {
     method: 'get',
   })
 }
+
+// @Tags MerUser
+// @Summary 生成永久token
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Success 200 {object} response.Response{data=object,msg=string} "生成成功"
+// @Router /merUser/generatePermanentToken [post]
+export const generatePermanentToken = () => {
+  return service({
+    url: '/merUser/generatePermanentToken',
+    method: 'post',
+  })
+}
+
+// @Tags MerUser
+// @Summary 获取永久token列表
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Success 200 {object} response.Response{data=object,msg=string} "获取成功"
+// @Router /merUser/getPermanentTokens [get]
+export const getPermanentTokens = () => {
+  return service({
+    url: '/merUser/getPermanentTokens',
+    method: 'get',
+  })
+}
+
+// @Tags MerUser
+// @Summary 撤销永久token
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Param data body {token: string} true "撤销永久token"
+// @Success 200 {object} response.Response{data=object,msg=string} "撤销成功"
+// @Router /merUser/revokePermanentToken [post]
+export const revokePermanentToken = (data) => {
+  return service({
+    url: '/merUser/revokePermanentToken',
+    method: 'post',
+    data
+  })
+}

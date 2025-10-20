@@ -34,6 +34,10 @@ func (userService *UserService) Register(u system.SysUser) (userInter system.Sys
 	u.Password = utils.BcryptHash(u.Password)
 	u.UUID = uuid.New()
 	err = global.GVA_DB.Create(&u).Error
+	if err != nil {
+		return userInter, err
+	}
+
 	return u, err
 }
 
@@ -305,6 +309,8 @@ func (userService *UserService) FindUserByUuid(uuid string) (user *system.SysUse
 	}
 	return &u, nil
 }
+
+// initUserDefaultConfigs 为新用户初始化默认配置项
 
 //@author: [piexlmax](https://github.com/piexlmax)
 //@function: ResetPassword

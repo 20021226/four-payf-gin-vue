@@ -108,6 +108,15 @@ func Gt(mark string) string {
 	return "gt=" + mark
 }
 
+//@author: [assistant]
+//@function: OptionalPositiveNumber
+//@description: 可选的正数验证 - 可以为空，但如果不为空则必须是大于0的数字
+//@return: string
+
+func OptionalPositiveNumber() string {
+	return "optionalPositiveNumber"
+}
+
 //
 //@author: [piexlmax](https://github.com/piexlmax)
 //@function: Verify
@@ -153,6 +162,10 @@ func Verify(st interface{}, roleMap Rules) (err error) {
 					if !regexpMatch(strings.Split(v, "=")[1], val.String()) {
 						return errors.New(tagVal.Name + "格式校验不通过")
 					}
+				case v == "optionalPositiveNumber":
+					if !optionalPositiveNumberVerify(val) {
+						return errors.New(tagVal.Name + "必须为空或大于0的数字")
+					}
 				case compareMap[strings.Split(v, "=")[0]]:
 					if !compareVerify(val, v) {
 						return errors.New(tagVal.Name + "长度或值不在合法范围," + v)
@@ -171,6 +184,15 @@ func Verify(st interface{}, roleMap Rules) (err error) {
 //@return: bool
 
 func compareVerify(value reflect.Value, VerifyStr string) bool {
+	// 处理指针类型
+	if value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return false // 空指针无法进行数值比较
+		}
+		// 解引用指针，获取实际值
+		value = value.Elem()
+	}
+
 	switch value.Kind() {
 	case reflect.String:
 		return compare(len([]rune(value.String())), VerifyStr)
@@ -291,4 +313,56 @@ func compare(value interface{}, VerifyStr string) bool {
 
 func regexpMatch(rule, matchStr string) bool {
 	return regexp.MustCompile(rule).MatchString(matchStr)
+}
+
+//@author: [assistant]
+//@function: optionalPositiveNumberVerify
+//@description: 可选正数验证 - 可以为空，但如果不为空则必须是大于0的数字
+//@param: value reflect.Value
+//@return: bool
+
+func optionalPositiveNumberVerify(value reflect.Value) bool {
+	// 处理指针类型
+	if value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return true // 空指针视为空值，验证通过
+		}
+		// 解引用指针，获取实际值
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.String:
+		str := value.String()
+		// 空字符串验证通过
+		if str == "" {
+			return true
+		}
+		// 尝试转换为数字并检查是否大于0
+		if num, err := strconv.ParseFloat(str, 64); err == nil {
+			return num > 0
+		}
+		return false
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intVal := value.Int()
+		// 0值视为空，验证通过；非0值必须大于0
+		return intVal == 0 || intVal > 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		//uintVal := value.Uint()
+		// 0值视为空，验证通过；非0值必须大于0（uint类型天然大于等于0）
+		return true
+	case reflect.Float32, reflect.Float64:
+		floatVal := value.Float()
+		// 0值视为空，验证通过；非0值必须大于0
+		return floatVal == 0 || floatVal > 0
+	case reflect.Interface:
+		if value.IsNil() {
+			return true // nil接口视为空值，验证通过
+		}
+		// 递归验证接口的实际值
+		return optionalPositiveNumberVerify(value.Elem())
+	default:
+		// 其他类型视为空值，验证通过
+		return true
+	}
 }

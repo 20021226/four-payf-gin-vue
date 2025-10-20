@@ -8,6 +8,7 @@ type ApiGroup struct {
 	AttachmentCategoryApi
 	MerUserApi
 	SysUserConfigApi
+	MerPayOrderApi
 }
 
 var (
@@ -16,4 +17,5 @@ var (
 	attachmentCategoryService    = service.ServiceGroupApp.ExampleServiceGroup.AttachmentCategoryService
 	merUserService               = service.ServiceGroupApp.ExampleServiceGroup.MerUserService
 	sysUserConfigService         = service.ServiceGroupApp.ExampleServiceGroup.SysUserConfigService
+	merPayOrderService           = service.ServiceGroupApp.ExampleServiceGroup.MerPayOrderService
 )

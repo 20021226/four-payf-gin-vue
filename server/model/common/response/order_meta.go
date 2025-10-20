@@ -7,7 +7,7 @@ import (
 // OrderMeta 订单元数据结构体
 type OrderMeta struct {
 	OrderId      *string `json:"orderId" redis:"orderId"`           // 订单ID
-	MerId        *int32  `json:"merId" redis:"merId"`               // 商户ID
+	MerId        *int64  `json:"merId" redis:"merId"`               // 商户ID
 	QrCode       *string `json:"qrCode" redis:"qrCode"`             // 二维码
 	CreateTime   string  `json:"createTime" redis:"createTime"`     // 创建时间
 	UserID       uint    `json:"userID" redis:"userID"`             // 用户ID
@@ -29,7 +29,7 @@ func (om *OrderMeta) FromJSON(data []byte) error {
 // NewOrderMeta 创建新的订单元数据实例
 func NewOrderMeta(
 	orderId *string,
-	merId *int32,
+	merId *int64,
 	qrCode *string,
 	createTime string,
 	userID uint,

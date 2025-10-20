@@ -134,13 +134,13 @@
             <div class="w-16 h-16 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
               <img
                 src="/logo.png"
-                alt="Gin-Vue-Admin Logo"
+                alt="Pay-Api-Admin Logo"
                 class="w-10 h-10 object-contain"
                 @error="handleLogoError"
               />
             </div>
-            <div class="flex-1">
-              <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-3">Gin-Vue-Admin</h4>
+            <div class="flex-1" v-if="false">
+              <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-3">Pay-Api-Admin</h4>
               <p class="text-sm text-gray-600 dark:text-gray-400 mb-5 leading-relaxed">
                 基于 Vue3 + Gin 的全栈开发基础平台，提供完整的后台管理解决方案
               </p>

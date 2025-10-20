@@ -452,7 +452,7 @@
             <el-button type="primary" size="small" @click="addBtn(form)">
               新增可控按钮
             </el-button>
-            <el-tooltip
+            <!-- <el-tooltip
               content="点击查看按钮权限配置文档"
               placement="top"
               effect="light"
@@ -462,8 +462,8 @@
                 @click="toDoc('https://www.gin-vue-admin.com/guide/web/button-auth.html')"
               >
                 <QuestionFilled />
-              </el-icon>
-            </el-tooltip>
+              </el-icon> -->
+            <!-- </el-tooltip> -->
           </div>
         </div>
              <el-table 

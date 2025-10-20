@@ -7,6 +7,10 @@ import (
 
 type MerUserSearch struct {
 	request.PageInfo
+	MerName  *string `json:"merName" form:"merName"` //商户名称
+	Id       *int64  `json:"id" form:"id"`           //id字段
+	MerType  *string `json:"merType" form:"merType"`
+	UserName *string `json:"userName" form:"userName"` //账号
 }
 
 type PaymentQrCodeResponse struct {

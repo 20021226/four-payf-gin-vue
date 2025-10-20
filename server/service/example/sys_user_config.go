@@ -2,17 +2,107 @@ package example
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	exampleReq "github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"reflect"
+	"time"
 )
 
 type SysUserConfigService struct{}
 
+// DefaultConfigItem 默认配置项结构
+type DefaultConfigItem struct {
+	Name   string
+	Title  string
+	Value  string
+	Status bool
+	FormId int32
+}
+
+// GetDefaultConfigs 获取默认配置项列表
+func (sysUserConfigService *SysUserConfigService) GetDefaultConfigs() []DefaultConfigItem {
+	return []DefaultConfigItem{
+		{
+			Name:   "allow_request_url",
+			Title:  "允许请求的域名/IP",
+			Value:  "localhost,127.0.0.1",
+			Status: false,
+			FormId: 1,
+		},
+		{
+			Name:   "encrypt_key",
+			Title:  "加密密钥",
+			Value:  "default_encrypt_key_123456",
+			Status: false,
+			FormId: 1,
+		},
+	}
+}
+
+// InitDefaultConfigsForUser 为指定用户初始化默认配置项
+func (sysUserConfigService *SysUserConfigService) InitDefaultConfigsForUser(ctx context.Context, sysUserID int64) error {
+	defaultConfigs := sysUserConfigService.GetDefaultConfigs()
+	
+	// 检查用户是否已有配置项，避免重复创建
+	var existingCount int64
+	err := global.GVA_DB.WithContext(ctx).Model(&example.SysUserConfig{}).
+		Where("sys_user_id = ?", sysUserID).Count(&existingCount).Error
+	if err != nil {
+		return err
+	}
+	
+	// 如果用户已有配置项，则不重复创建
+	if existingCount > 0 {
+		global.GVA_LOG.Info("用户已有配置项，跳过初始化", zap.Int64("sysUserID", sysUserID))
+		return nil
+	}
+	
+	// 批量创建默认配置项
+	var configs []example.SysUserConfig
+	now := time.Now()
+	
+	for _, defaultConfig := range defaultConfigs {
+		config := example.SysUserConfig{
+			SysUserId:  &sysUserID,
+			Name:       &defaultConfig.Name,
+			Title:      &defaultConfig.Title,
+			Value:      &defaultConfig.Value,
+			Status:     &defaultConfig.Status,
+			FormId:     &defaultConfig.FormId,
+			CreateTime: &now,
+			UpdateTime: &now,
+		}
+		configs = append(configs, config)
+	}
+	
+	// 批量插入
+	err = global.GVA_DB.WithContext(ctx).CreateInBatches(configs, 10).Error
+	if err != nil {
+		global.GVA_LOG.Error("初始化用户默认配置失败", zap.Int64("sysUserID", sysUserID), zap.Error(err))
+		return err
+	}
+	
+	global.GVA_LOG.Info("成功为用户初始化默认配置", zap.Int64("sysUserID", sysUserID), zap.Int("configCount", len(configs)))
+	return nil
+}
+
+
+
 // CreateSysUserConfig 创建sysUserConfig表记录
 // Author [yourname](https://github.com/yourname)
 func (sysUserConfigService *SysUserConfigService) CreateSysUserConfig(ctx context.Context, sysUserConfig *example.SysUserConfig) (err error) {
+	// 验证配置项名称是否在允许的列表中
+	if sysUserConfig.Name != nil {
+		if err := sysUserConfigService.validateConfigName(*sysUserConfig.Name); err != nil {
+			return err
+		}
+	}
+	
 	db := global.GVA_DB.WithContext(ctx)
 	err = db.Create(sysUserConfig).Error
 	return err
@@ -37,7 +127,32 @@ func (sysUserConfigService *SysUserConfigService) DeleteSysUserConfigByIds(ctx c
 // UpdateSysUserConfig 更新sysUserConfig表记录
 // Author [yourname](https://github.com/yourname)
 func (sysUserConfigService *SysUserConfigService) UpdateSysUserConfig(ctx context.Context, sysUserConfig example.SysUserConfig) (err error) {
+	// 验证配置项名称是否在允许的列表中
+	if sysUserConfig.Name != nil {
+		if err := sysUserConfigService.validateConfigName(*sysUserConfig.Name); err != nil {
+			return err
+		}
+	}
+	
 	db := global.GVA_DB.WithContext(ctx).Model(&example.SysUserConfig{})
+	
+	// 首先检查配置项是否存在
+	var existingConfig example.SysUserConfig
+	err = db.Where("form_id = ?", sysUserConfig.FormId).
+		Where("name = ?", sysUserConfig.Name).
+		First(&existingConfig).Error
+	
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 配置项不存在，需要创建
+			err = sysUserConfigService.CreateSysUserConfig(ctx, &sysUserConfig)
+			return err
+		}
+		// 其他错误直接返回
+		return err
+	}
+	
+	// 配置项存在，执行更新
 	err = db.Where("form_id = ?", sysUserConfig.FormId).
 		Where("name = ?", sysUserConfig.Name).
 		Omit("sys_user_id").
@@ -47,6 +162,11 @@ func (sysUserConfigService *SysUserConfigService) UpdateSysUserConfig(ctx contex
 
 // UpdateValueByNameForm 更新指定 name+formId 的 value 字段
 func (sysUserConfigService *SysUserConfigService) UpdateValueByNameForm(ctx context.Context, name string, formId int32, value string) error {
+	// 验证配置项名称是否在允许的列表中
+	if err := sysUserConfigService.validateConfigName(name); err != nil {
+		return err
+	}
+	
 	db := global.GVA_DB.WithContext(ctx).Model(&example.SysUserConfig{})
 	return db.Where("name = ? AND form_id = ?", name, formId).Update("value", value).Error
 }
@@ -148,4 +268,23 @@ type SysUserConfig struct {
 // GetSysUserConfigPublic 获取公共配置（form_id=0）
 func (sysUserConfigService *SysUserConfigService) GetSysUserConfigPublic(ctx context.Context) (SysUserConfig, error) {
 	return sysUserConfigService.GetConfigBySysUserID(ctx, 0)
+}
+
+// validateConfigName 验证配置项名称是否在允许的列表中
+func (sysUserConfigService *SysUserConfigService) validateConfigName(configName string) error {
+	defaultConfigs := sysUserConfigService.GetDefaultConfigs()
+	
+	for _, config := range defaultConfigs {
+		if config.Name == configName {
+			return nil // 找到匹配的配置项
+		}
+	}
+	
+	// 构建允许的配置项列表
+	var allowedNames []string
+	for _, config := range defaultConfigs {
+		allowedNames = append(allowedNames, config.Name)
+	}
+	
+	return fmt.Errorf("配置项 '%s' 不在允许的配置列表中，只允许以下配置项: %v", configName, allowedNames)
 }

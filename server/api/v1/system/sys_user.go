@@ -1,6 +1,7 @@
 package system
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	systemReq "github.com/flipped-aurora/gin-vue-admin/server/model/system/request"
 	systemRes "github.com/flipped-aurora/gin-vue-admin/server/model/system/response"
+	"github.com/flipped-aurora/gin-vue-admin/server/service/example"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -158,6 +160,15 @@ func (b *BaseApi) Register(c *gin.Context) {
 		response.FailWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册失败", c)
 		return
 	}
+	
+	// 为新用户初始化默认配置项
+	ctx := context.Background()
+	sysUserConfigService := &example.SysUserConfigService{}
+	if configErr := sysUserConfigService.InitDefaultConfigsForUser(ctx, int64(userReturn.ID)); configErr != nil {
+		global.GVA_LOG.Error("初始化用户默认配置失败", zap.Uint("userID", userReturn.ID), zap.Error(configErr))
+		// 注意：这里不返回错误，因为用户已经创建成功，配置初始化失败不应该影响用户注册
+	}
+	
 	response.OkWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册成功", c)
 }
 

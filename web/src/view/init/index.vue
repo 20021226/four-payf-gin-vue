@@ -19,7 +19,7 @@
             GIN-VUE-ADMIN
           </div>
           <p class="text-gray-600 dark:text-gray-300 mb-2">初始化须知</p>
-          <p class="text-gray-600 dark:text-gray-300 mb-2">
+          <!-- <p class="text-gray-600 dark:text-gray-300 mb-2">
             1.您需有用一定的VUE和GOLANG基础
           </p>
           <p class="text-gray-600 dark:text-gray-300 mb-2">
@@ -38,7 +38,7 @@
           </p>
           <p class="text-gray-600 dark:text-gray-300 mb-2">
             3.请您确认是否了解后续的配置流程
-          </p>
+          </p> -->
           <p class="text-gray-600 dark:text-gray-300 mb-2">
             4.如果您使用mysql数据库，请确认数据库引擎为<span
               class="text-red-600 font-bold text-3xl ml-2"

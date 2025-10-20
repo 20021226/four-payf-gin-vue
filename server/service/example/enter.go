@@ -6,4 +6,5 @@ type ServiceGroup struct {
 	AttachmentCategoryService
 	MerUserService
 	SysUserConfigService
+	MerPayOrderService
 }

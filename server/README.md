@@ -2,6 +2,9 @@
 ```shell
  $env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -o "./build/linux/server"
 ```
+```shell
+ $env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -o "../deploy/docker-compose/server"
+```
 
 ## server项目结构
 

@@ -3,6 +3,7 @@ package example
 import (
 	"context"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"math"
 	"math/rand"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/middleware"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	exampleReq "github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
@@ -68,13 +70,14 @@ func (merUserApi *MerUserApi) checkAmountRangeConflict(ctx context.Context, user
 }
 
 // findAvailableAmount 查找指定金额范围内未被占用的金额
-// 输入金额如 5.00，在 5.01-5.99 范围内查找未被占用的金额
+// inputAmount: 输入的基础金额（单位: 元）
+// minDecimalAmount, maxDecimalAmount: 小数部分范围（如 1-99 表示 0.01-0.99）
+// 例如：输入 500（5.00元），在 5.01-5.99 范围内查找未被占用的金额
 // 返回可用的金额，如果全部被占用则返回 0
-func (merUserApi *MerUserApi) findAvailableAmount(ctx context.Context, userID uint, inputAmount int64) (float64, error) {
-	// 计算检查范围：输入金额的下一分到下一元的前一分
-	// 例如：输入 5.00，检查 5.01 到 5.99
-	baseAmount := float64(inputAmount)
-	startCent := inputAmount
+func (merUserApi *MerUserApi) findAvailableAmount(ctx context.Context, userID uint, inputAmount int64, maxDecimalAmount, minDecimalAmount int32) (decimal.Decimal, error) {
+	// 将输入金额转换为正确的浮点数格式
+	// inputAmount 单位: 元
+	baseAmount := decimal.NewFromInt(inputAmount)
 
 	// 构建 Redis 键的模式
 	keyPattern := fmt.Sprintf("%s:%d:*", global.PAY_AMOUNT_USED_KEY, userID)
@@ -97,16 +100,20 @@ func (merUserApi *MerUserApi) findAvailableAmount(ctx context.Context, userID ui
 	}
 
 	if err := iter.Err(); err != nil {
-		return 0, fmt.Errorf("Redis SCAN 操作失败: %w", err)
+		return decimal.Zero, fmt.Errorf("Redis SCAN 操作失败: %w", err)
 	}
 
 	// 收集所有可用的金额
-	var availableAmounts []float64
+	var availableAmounts []decimal.Decimal
 
-	// 在当前范围内查找所有未被占用的金额
-	for cent := startCent; cent <= 99; cent++ {
-		candidateAmount := baseAmount + float64(cent)/100
-		candidateAmountStr := fmt.Sprintf("%.2f", candidateAmount)
+	// 在指定的小数范围内查找所有未被占用的金额
+	// 例如：baseAmount = 5.00, minDecimalAmount = 1, maxDecimalAmount = 99
+	// 会检查 5.01, 5.02, ..., 5.99
+	for cent := minDecimalAmount; cent <= maxDecimalAmount; cent++ {
+		candidateAmount := baseAmount.Add(
+			decimal.NewFromInt(int64(cent)).Div(decimal.NewFromInt(100)),
+		)
+		candidateAmountStr := candidateAmount.StringFixed(2)
 
 		if !occupiedAmounts[candidateAmountStr] {
 			availableAmounts = append(availableAmounts, candidateAmount)
@@ -119,7 +126,7 @@ func (merUserApi *MerUserApi) findAvailableAmount(ctx context.Context, userID ui
 		return availableAmounts[randomIndex], nil
 	}
 
-	return 0, nil // 全部被占用
+	return decimal.Zero, nil // 全部被占用
 }
 
 // checkAmountRangeConflictOptimized 优化版本：使用更精确的范围检查
@@ -375,11 +382,17 @@ func (merUserApi *MerUserApi) GetMerUserPublic(c *gin.Context) {
 func (merUserApi *MerUserApi) GetPayQrCode(c *gin.Context) {
 	// 创建业务用Context
 	ctx := c.Request.Context()
-	userID := utils.GetUserID(c)
+	// 支持永久token和JWT两种方式获取用户ID
+	userID := middleware.GetUserIDFromTokenOrJWT(c)
 	var reqParms payReq.PayQrcodeParms
 	var paymentQrCodeResponse exampleRes.PaymentQrCodeResponse
 	err := c.ShouldBindJSON(&reqParms)
 	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	// 参数验证
+	if err := utils.Verify(reqParms, utils.PayQrcodeParmsVerify); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
@@ -392,25 +405,37 @@ func (merUserApi *MerUserApi) GetPayQrCode(c *gin.Context) {
 	}
 	// 校验允许的域名/IP
 	if !utils.IsHostAllowed(sysUserConfig.AllowRequestUrl, c.Request.Host) {
-		response.StdFail(c, "未授权的调用")
+		response.StdFail(c, "域名或IP未授权调用")
 		return
 	}
 
 	//get mer data
-	merUserList, err := merUserService.GetNomalMerUser(ctx, reqParms)
+	merUserList, err := merUserService.GetNomalMerUser(ctx, reqParms, userID)
 	if err != nil {
 		global.GVA_LOG.Error("获取普通商户用户失败!", zap.Error(err))
 		response.StdFail(c, "获取普通商户用户失败:"+err.Error())
 		return
 	}
+
 	currentMerUser := example.MerUser{}
 	if reqParms.MerId != nil {
 		for _, item := range merUserList {
-			if item.Id == reqParms.MerId {
+			if item.Id != nil && reqParms.MerId != nil && *item.Id == *reqParms.MerId {
 				currentMerUser = item
 				break
 			}
 		}
+	} else {
+		// 随机从列表中选择一个
+		if len(merUserList) > 0 {
+			randomIndex := rand.Intn(len(merUserList))
+			currentMerUser = merUserList[randomIndex]
+		}
+	}
+
+	if currentMerUser.Id == nil {
+		response.StdFail(c, "未找到商户的收款码,请登录后台查看商户状态")
+		return
 	}
 
 	if currentMerUser.MaxAmount == nil || currentMerUser.MinAmount == nil {
@@ -422,105 +447,214 @@ func (merUserApi *MerUserApi) GetPayQrCode(c *gin.Context) {
 		return
 	}
 
-	// 检查金额范围冲突：防止相近金额的重复支付
-	hasConflict, err := merUserApi.checkAmountRangeConflictOptimized(ctx, userID, reqParms.PayAmmount)
+	//// 检查金额范围冲突：防止相近金额的重复支付
+	//hasConflict, err := merUserApi.checkAmountRangeConflictOptimized(ctx, userID, reqParms.PayAmmount)
+	//if err != nil {
+	//	global.GVA_LOG.Error("检查金额冲突失败!", zap.Error(err))
+	//	response.StdFail(c, "该金额已被占用，请稍后重试")
+	//	return
+	//}
+
+	// 处理可能的 nil 指针
+	var maxDecimalAmount int32
+	var minDecimalAmount int32
+
+	if currentMerUser.MaxDecimalAmount != nil {
+		maxDecimalAmount = *currentMerUser.MaxDecimalAmount
+	} else {
+		// 设置默认值或处理错误
+		maxDecimalAmount = 100 // 默认值
+	}
+
+	if currentMerUser.MinDecimalAmount != nil {
+		minDecimalAmount = *currentMerUser.MinDecimalAmount
+	} else {
+		minDecimalAmount = 1 // 默认值
+	}
+
+	availableAmount, err := merUserApi.findAvailableAmount(ctx, userID, reqParms.PayAmmount, maxDecimalAmount, minDecimalAmount)
 	if err != nil {
-		global.GVA_LOG.Error("检查金额冲突失败!", zap.Error(err))
+		global.GVA_LOG.Error("查找可用金额失败!", zap.Error(err))
 		response.StdFail(c, "系统繁忙，请稍后重试")
 		return
 	}
 
-	// 获取可用金额
-	if hasConflict {
-		availableAmount, err := merUserApi.findAvailableAmount(ctx, userID, reqParms.PayAmmount)
-		if err != nil {
-			global.GVA_LOG.Error("查找可用金额失败!", zap.Error(err))
-			response.StdFail(c, "系统繁忙，请稍后重试")
-			return
-		}
-
-		if availableAmount == 0 {
-			response.StdFail(c, fmt.Sprintf("金额 %.2f 及其相近金额范围内的所有金额都已被占用，请稍后重试或使用其他金额", reqParms.PayAmmount))
-			return
-		}
-
-		// 使用找到的可用金额
-		paymentQrCodeResponse.Amount = &availableAmount
-		global.GVA_LOG.Info(
-			"自动调整金额",
-			zap.Float64("原金额", *paymentQrCodeResponse.Amount),
-			zap.Float64("调整后金额", availableAmount),
-		)
+	if availableAmount == decimal.Zero {
+		response.StdFail(c, fmt.Sprintf("金额 %.2f 及其相近金额范围内的所有金额都已被占用，请稍后重试或使用其他金额", float64(reqParms.PayAmmount)))
+		return
 	}
+
+	// 使用找到的可用金额
+	paymentQrCodeResponse.Amount = &availableAmount
+	global.GVA_LOG.Info(
+		"自动调整金额",
+		zap.Float64("原金额", float64(reqParms.PayAmmount)),
+		zap.String("调整后金额", availableAmount.String()),
+	)
 
 	currentMerUser = merUserList[rand.Intn(len(merUserList))]
 	currentTimeStr := utils.GetCurrentTimeStr()
 	paymentQrCodeResponse.QrcodeCode = currentMerUser.QrCode
 	paymentQrCodeResponse.CreateTime = &currentTimeStr
-	//paymentQrCodeResponse.OrderId = utils.GetOrderID()
 
-	payCreateTime := utils.GetCurrentTimeStr()
+	// 生成订单ID
+	paymentQrCodeResponse.OrderId = &reqParms.OrderId
+
+	//payCreateTime := utils.GetCurrentTimeStr()
+
+	amount := decimal.NewFromInt(reqParms.PayAmmount)
+	payOrder := example.MerPayOrder{
+		MerId:          currentMerUser.Id,
+		MerName:        currentMerUser.MerName,
+		MerType:        currentMerUser.MerType,
+		SysUserId:      currentMerUser.SysUserId,
+		Ammount:        &amount,
+		RequestAmmount: paymentQrCodeResponse.Amount,
+		OrderId:        paymentQrCodeResponse.OrderId,
+	}
+	err = merPayOrderService.CreateMerPayOrder(ctx, &payOrder)
+	if err != nil {
+		global.GVA_LOG.Error("创建支付订单失败!", zap.Error(err))
+		response.StdFail(c, "创建支付订单失败:"+err.Error())
+		return
+	}
+
+	// 插入成功后，payOrder.Id 会被自动填充为数据库生成的 ID
+	global.GVA_LOG.Info("支付订单创建成功",
+		zap.Int64("订单ID", *payOrder.Id),
+		zap.String("订单号", *payOrder.OrderId))
 
 	// 将订单上下文写入 Redis，便于后续查询与校验
 	if paymentQrCodeResponse.OrderId != nil {
-		orderMeta := response.NewOrderMeta(
-			paymentQrCodeResponse.OrderId,
-			currentMerUser.Id,
-			currentMerUser.QrCode,
-			currentTimeStr,
-			userID,
-			global.PAY_ORDER_STATE_PENDING,
-			fmt.Sprintf("%.2f", paymentQrCodeResponse.Amount),
-			*currentMerUser.MerType,
-		)
+		// 确保 Amount 不为空
+		amountStr := availableAmount.String()
 
-		if bts, err := orderMeta.ToJSON(); err == nil {
-			var ttl time.Duration
-			if reqParms.Expires == 0 {
-				ttl = time.Duration(5) * time.Minute
-			}
-			ttl = time.Duration(reqParms.Expires) * time.Second
-
-			startTime, endTime := utils.GetTimeRange(payCreateTime, 300)
-
-			// 构建 Redis 键：pay_amount_used:userID:amount
-			amount := fmt.Sprintf("%.2f", paymentQrCodeResponse.Amount)
-			redisKey := fmt.Sprintf("%s:%d:%s", global.PAY_AMOUNT_USED_KEY, userID, amount)
-			ok, err := global.GVA_REDIS.SetNX(ctx, redisKey, bts, ttl).Result()
-			if err != nil {
-				global.GVA_LOG.Error("缓存订单上下文失败!", zap.Error(err))
-				response.StdFail(c, "系统繁忙，请稍后重试")
-				return
-			} else if !ok {
-				response.StdFail(c, fmt.Sprintf("金额 %.2f 及其相近金额范围内的所有金额都已被占用，请稍后重试或使用其他金额", *paymentQrCodeResponse.Amount))
-				return
-			} else {
-				// Redis SetNX 成功，创建并启动订单监控任务
-				monitorTask := payTask.NewOrderMonitorTask(
-					userID,
-					amount,
-					redisKey,
-					ttl,
-					*currentMerUser.MerType,
-					*paymentQrCodeResponse.OrderId,
-					*currentMerUser.Id,
-					startTime,
-					endTime,
-				)
-				monitorTask.Start()
-
-				global.GVA_LOG.Info("订单创建成功，监控任务已启动",
-					zap.Uint("userID", userID),
-					zap.String("amount", amount),
-					zap.String("redisKey", redisKey),
-					zap.Duration("ttl", ttl))
-			}
+		var ttl time.Duration
+		if reqParms.Expires == 0 {
+			ttl = time.Duration(5) * time.Minute
 		} else {
-			global.GVA_LOG.Error("序列化订单上下文失败!", zap.Error(err))
+			ttl = time.Duration(reqParms.Expires) * time.Second
+		}
+		startTime, endTime := utils.GetTimeRange(ttl)
+
+		// 构建 Redis 键：pay_amount_used:userID:amount
+		redisKey := fmt.Sprintf("%s:%d:%s", global.PAY_AMOUNT_USED_KEY, userID, amountStr)
+		ok, err := global.GVA_REDIS.SetNX(ctx, redisKey, 1, ttl).Result()
+		if err != nil {
+			global.GVA_LOG.Error("缓存订单上下文失败!", zap.Error(err))
+			response.StdFail(c, "系统繁忙，请稍后重试")
+			return
+		} else if !ok {
+			response.StdFail(c, fmt.Sprintf("金额 %s 及其相近金额范围内的所有金额都已被占用，请稍后重试或使用其他金额", amountStr))
+			return
+		} else {
+			// Redis SetNX 成功，创建并启动订单监控任务
+			monitorTask := payTask.NewOrderMonitorTask(
+				userID,
+				amountStr,
+				redisKey,
+				ttl,
+				*currentMerUser.MerType,
+				*paymentQrCodeResponse.OrderId,
+				*currentMerUser.Id,
+				startTime,
+				endTime,
+				reqParms.CallbackUrl,
+				*payOrder.Id, // 使用插入后获取的订单 ID
+			)
+			monitorTask.Start()
+
+			global.GVA_LOG.Info("订单创建成功，监控任务已启动",
+				zap.Uint("userID", userID),
+				zap.String("amount", amountStr),
+				zap.String("redisKey", redisKey),
+				zap.Duration("ttl", ttl))
 		}
 	}
+	paymentQrCodeResponse.UniqueId = payOrder.Id
+	response.StdOk(c, paymentQrCodeResponse, "创建成功")
+}
 
-	response.StdOk(c, gin.H{
-		"data": paymentQrCodeResponse,
-	}, "创建成功")
+// GeneratePermanentToken 生成永久token（每个用户只能有一个有效token，生成新token会删除旧token）
+// @Tags MerUser
+// @Summary 生成永久token（单一token机制）
+// @Description 为用户生成永久token，每个用户只能拥有一个有效的永久token。生成新token时会自动删除所有旧token。
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Success 200 {object} response.Response{data=object,msg=string} "生成成功，旧token已删除"
+// @Router /merUser/generatePermanentToken [post]
+func (merUserApi *MerUserApi) GeneratePermanentToken(c *gin.Context) {
+	userID := utils.GetUserID(c)
+
+	// 生成永久token（会自动删除旧token）
+	token, err := utils.GeneratePermanentToken(userID)
+	if err != nil {
+		global.GVA_LOG.Error("生成永久token失败!", zap.Error(err))
+		response.FailWithMessage("生成永久token失败:"+err.Error(), c)
+		return
+	}
+
+	response.OkWithDetailed(gin.H{
+		"token":      token,
+		"user_id":    userID,
+		"created_at": time.Now().Unix(),
+		"notice":     "新token已生成，所有旧token已自动删除",
+	}, "生成成功，旧token已删除", c)
+}
+
+// GetPermanentTokens 获取用户的永久token列表
+// @Tags MerUser
+// @Summary 获取用户的永久token列表
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Success 200 {object} response.Response{data=object,msg=string} "获取成功"
+// @Router /merUser/getPermanentTokens [get]
+func (merUserApi *MerUserApi) GetPermanentTokens(c *gin.Context) {
+	userID := utils.GetUserID(c)
+
+	// 获取用户的所有永久token
+	tokens, err := utils.GetUserPermanentTokens(userID)
+	if err != nil {
+		global.GVA_LOG.Error("获取永久token列表失败!", zap.Error(err))
+		response.FailWithMessage("获取永久token列表失败:"+err.Error(), c)
+		return
+	}
+
+	response.OkWithDetailed(gin.H{
+		"tokens": tokens,
+		"total":  len(tokens),
+	}, "获取成功", c)
+}
+
+// RevokePermanentToken 删除永久token
+// @Tags MerUser
+// @Summary 删除永久token
+// @Security ApiKeyAuth
+// @Accept application/json
+// @Produce application/json
+// @Param data body object{token=string} true "删除永久token"
+// @Success 200 {object} response.Response{msg=string} "删除成功"
+// @Router /merUser/revokePermanentToken [post]
+func (merUserApi *MerUserApi) RevokePermanentToken(c *gin.Context) {
+	var req struct {
+		Token string `json:"token" binding:"required"`
+	}
+
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+
+	// 删除永久token
+	err = utils.RevokePermanentToken(req.Token)
+	if err != nil {
+		global.GVA_LOG.Error("删除永久token失败!", zap.Error(err))
+		response.FailWithMessage("删除永久token失败:"+err.Error(), c)
+		return
+	}
+
+	response.OkWithMessage("删除成功", c)
 }

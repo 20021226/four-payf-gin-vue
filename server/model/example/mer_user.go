@@ -11,18 +11,21 @@ import (
 
 // merUser表 结构体  MerUser
 type MerUser struct {
-	Id        *int32  `json:"id" form:"id" gorm:"index;primarykey;autoIncrement;column:id;"`                    //id字段
+	Id        *int64  `json:"id" form:"id" gorm:"index;primarykey;autoIncrement;column:id;"`                    //id字段
 	SysUserId *int64  `json:"sysUserId" form:"sysUserId" gorm:"index;comment:管理ID;column:sys_user_id;"`         //管理ID
 	MerType   *string `json:"merType" form:"merType" gorm:"comment:接入类型(0:星驿,1:富掌柜);column:mer_type;size:255;"` //接入类型(0:星驿,1:富掌柜)
 	UserName  *string `json:"userName" form:"userName" gorm:"comment:账号;column:user_name;size:255;"`            //账号
 	Password  *string `json:"password" form:"password" gorm:"comment:密码;column:password;size:255;"`             //密码
 	State     *bool   `json:"state" form:"state" gorm:"comment:是否启用(1: 启用 0:不启用);column:state;size:255;"`       //是否启用
 	//QrCode     *string    `json:"qrCode" form:"qrCode" gorm:"comment:收款码;column:qr_code;"`                             //收款码
-	QrCode    *string `json:"qrCode" form:"qrCode" gorm:"type:MEDIUMTEXT;comment:收款码;column:qr_code"`      // 收款码
-	Key       *string `json:"key" form:"key" gorm:"comment:请求密钥;column:key;size:255;"`                     //请求密钥
-	IsDel     *string `json:"isDel" form:"isDel" gorm:"comment:是否删除(1: 删除 0:未删除);column:is_del;size:255;"` //是否删除(1: 删除 0:未删除)
-	MaxAmount *int64  `json:"maxAmount" form:"maxAmount" gorm:"index;comment:最大金额;column:max_amount;"`     //最大金额
-	MinAmount *int64  `json:"minAmount" form:"minAmount" gorm:"index;comment:最小金额;column:min_amount;"`     //最小金额
+	QrCode           *string `json:"qrCode" form:"qrCode" gorm:"type:MEDIUMTEXT;comment:收款码;column:qr_code"`                                   // 收款码
+	Key              *string `json:"key" form:"key" gorm:"comment:请求密钥;column:key;size:255;"`                                                  //请求密钥
+	IsDel            *string `json:"isDel" form:"isDel" gorm:"comment:是否删除(1: 删除 0:未删除);column:is_del;size:255;default:0;"`                    //是否删除(1: 删除 0:未删除)
+	MaxAmount        *int64  `json:"maxAmount" form:"maxAmount" gorm:"index;comment:最大金额;column:max_amount;default:1000;"`                     //最大金额
+	MinAmount        *int64  `json:"minAmount" form:"minAmount" gorm:"index;comment:最小金额;column:min_amount;default:1;"`                        //最小金额
+	MaxDecimalAmount *int32  `json:"maxDecimalAmount" form:"maxDecimalAmount" gorm:"index;comment:最大金额;column:max_decimal_amount;default:99;"` //最大金额
+	MinDecimalAmount *int32  `json:"minDecimalAmount" form:"minDecimalAmount" gorm:"index;comment:最小金额;column:min_decimal_amount;default:1;"`  //最小金额
+	MerName          *string `json:"merName" form:"merName" gorm:"comment:商户名称;column:mer_name;size:255;"`                                     //商户名称
 
 	CreateTime *time.Time `json:"createTime" form:"createTime" gorm:"comment:创建时间;column:create_time;autoCreateTime;"` //创建时间
 	UpdateTime *time.Time `json:"updateTime" form:"updateTime" gorm:"comment:更新时间;column:update_time;autoUpdateTime;"` //更新时间

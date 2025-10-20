@@ -3,6 +3,12 @@
 ## Project setup
 
 ```
+npm run build:to ..\deploy\docker-compose\nginx\html
+```
+
+## Project setup
+
+```
 npm install
 ```
 

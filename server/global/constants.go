@@ -21,8 +21,22 @@ const (
 	MER_TYPE_RICH       = "1"
 	MER_TYPE_XIANG_XIAN = "2"
 
-	REDIS_PAY_REQUEST_TOKEN = "pay_request_token"
+	REDIS_PAY_REQUEST_TOKEN  = "pay_request_token"
+	REDIS_PAY_REQUEST_COOKIE = "pay_request_cookie"
 )
+
+var (
+	MER_PAY_ORDER_PENDING  = int8Ptr(0)
+	MER_PAY_ORDER_PAID     = int8Ptr(1)
+	MER_PAY_ORDER_FAILED   = int8Ptr(2)
+	MER_PAY_ORDER_CANCELED = int8Ptr(3)
+	MER_PAY_ORDER_REFUNDED = int8Ptr(4)
+)
+
+// 辅助函数
+func int8Ptr(i int8) *int8 {
+	return &i
+}
 
 // Shared 演示性的全局共享变量容器（可按需扩展字段并由初始化流程赋值）
 // 如需更复杂的全局共享配置，建议继续使用 GVA 的配置系统（global.GVA_CONFIG）

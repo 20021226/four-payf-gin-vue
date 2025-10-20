@@ -1,11 +1,14 @@
 package example
 
 import (
+	"context"
+	"fmt"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	exampleReq "github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
 	exampleResp "github.com/flipped-aurora/gin-vue-admin/server/model/example/response"
+	exampleService "github.com/flipped-aurora/gin-vue-admin/server/service/example"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -105,6 +108,8 @@ func (sysUserConfigApi *SysUserConfigApi) UpdateSysUserConfig(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
+	
+	// 特殊处理加密密钥生成
 	if sysUserConfig.Name != nil && *sysUserConfig.Name == "encrypt_key" && sysUserConfig.Value == nil {
 		key, err := utils.GenerateAESKey(32)
 		if err != nil {
@@ -112,8 +117,18 @@ func (sysUserConfigApi *SysUserConfigApi) UpdateSysUserConfig(c *gin.Context) {
 			return
 		}
 		sysUserConfig.Value = &key
-		return
 	}
+	
+	// 如果配置项不存在，尝试从默认配置中获取并填充缺失字段
+	if sysUserConfig.Name != nil {
+		err = sysUserConfigApi.ensureConfigExists(ctx, &sysUserConfig)
+		if err != nil {
+			global.GVA_LOG.Error("确保配置项存在失败!", zap.Error(err))
+			response.FailWithMessage("确保配置项存在失败:"+err.Error(), c)
+			return
+		}
+	}
+	
 	err = sysUserConfigService.UpdateSysUserConfig(ctx, sysUserConfig)
 	if err != nil {
 		global.GVA_LOG.Error("更新失败!", zap.Error(err))
@@ -121,6 +136,47 @@ func (sysUserConfigApi *SysUserConfigApi) UpdateSysUserConfig(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage("更新成功", c)
+}
+
+// ensureConfigExists 确保配置项存在，只允许默认配置列表中规定的配置项
+func (sysUserConfigApi *SysUserConfigApi) ensureConfigExists(ctx context.Context, sysUserConfig *example.SysUserConfig) error {
+	// 获取默认配置列表
+	defaultConfigs := sysUserConfigService.GetDefaultConfigs()
+	
+	// 查找对应的默认配置项
+	var defaultConfig *exampleService.DefaultConfigItem
+	for _, config := range defaultConfigs {
+		if config.Name == *sysUserConfig.Name {
+			defaultConfig = &config
+			break
+		}
+	}
+	
+	// 如果找不到对应的默认配置，返回错误（只允许默认配置列表中的配置项）
+	if defaultConfig == nil {
+		return fmt.Errorf("配置项 '%s' 不在允许的配置列表中，只允许以下配置项: %v", 
+			*sysUserConfig.Name, 
+			func() []string {
+				var names []string
+				for _, config := range defaultConfigs {
+					names = append(names, config.Name)
+				}
+				return names
+			}())
+	}
+	
+	// 填充缺失的字段
+	if sysUserConfig.Title == nil {
+		sysUserConfig.Title = &defaultConfig.Title
+	}
+	if sysUserConfig.Value == nil {
+		sysUserConfig.Value = &defaultConfig.Value
+	}
+	if sysUserConfig.Status == nil {
+		sysUserConfig.Status = &defaultConfig.Status
+	}
+	
+	return nil
 }
 
 // FindSysUserConfig 用id查询sysUserConfig表

@@ -8,6 +8,11 @@ func GetCurrentTime() int64 {
 	return time.Now().Unix()
 }
 
+// FormatTime 自定义格式化时间函数
+func FormatTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05")
+}
+
 func GetCurrentTimeStr() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
@@ -15,14 +20,14 @@ func GetCurrentTimeStr() string {
 // GetTimeRangeStr 根据TTL计算格式化的开始时间和结束时间字符串
 // layout: 时间格式，如 "20060102150405" 或 "2006-01-02 15:04:05"
 // ttl: 时间范围，如果为0则默认5分钟
-func GetTimeRange(layout string, ttl time.Duration) (startTime, endTime time.Time) {
+func GetTimeRange(ttl time.Duration) (startTime, endTime time.Time) {
 	if ttl == 0 {
 		ttl = time.Duration(5) * time.Minute
 	}
 
 	now := time.Now()
-	startTime = now.Add(-ttl)
-	endTime = now
+	startTime = now
+	endTime = now.Add(ttl)
 
 	return startTime, endTime
 }
@@ -38,5 +43,5 @@ func GetTimeRangeStrWithExpires(layout string, expires int) (startTimeStr, endTi
 		ttl = time.Duration(expires) * time.Second
 	}
 
-	return GetTimeRangeStr(layout, ttl)
+	return GetTimeRange(ttl)
 }

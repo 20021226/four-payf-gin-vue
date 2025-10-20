@@ -46,7 +46,7 @@ export default ({ mode }) => {
 
   const base = "/"
   const root = "./"
-  const outDir = "dist"
+  const outDir = process.env.VITE_OUT_DIR || "dist"
 
   const config = {
     base: base, // 编译后js导入的资源路径

@@ -16,6 +16,8 @@
   "/src/view/example/breakpoint/breakpoint.vue": "BreakPoint",
   "/src/view/example/customer/customer.vue": "Customer",
   "/src/view/example/index.vue": "Example",
+  "/src/view/example/merPayOrder/merPayOrder.vue": "MerPayOrder",
+  "/src/view/example/merPayOrder/merPayOrderForm.vue": "MerPayOrderForm",
   "/src/view/example/merUser/merUser.vue": "MerUser",
   "/src/view/example/merUser/merUserForm.vue": "MerUserForm",
   "/src/view/example/sysUserConfig/sysUserConfig.vue": "SysUserConfig",

@@ -5,9 +5,15 @@
   "scripts": {
     "serve": "node openDocument.js && vite --host --mode development",
     "build": "vite build --mode production",
+    "build:to": "node build-custom.cjs",
+    "build:to:clean": "node build-custom.cjs --emptyOutDir",
     "limit-build": "npm install increase-memory-limit-fixbug cross-env -g && npm run fix-memory-limit && node ./limit && npm run build",
     "preview": "vite preview",
-    "fix-memory-limit": "cross-env LIMIT=4096 increase-memory-limit"
+    "fix-memory-limit": "cross-env LIMIT=4096 increase-memory-limit",
+    "deploy:config": "node deploy-config.cjs",
+    "deploy:build": "npm run build && echo '构建完成，请使用 npm run deploy:config [BASE_PATH] 配置部署参数'",
+    "docker:deploy": "docker-compose -f docker-deploy.yml up -d",
+    "docker:stop": "docker-compose -f docker-deploy.yml down"
   },
   "type": "module",
   "dependencies": {

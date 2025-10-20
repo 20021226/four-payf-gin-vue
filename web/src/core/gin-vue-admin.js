@@ -10,7 +10,7 @@ export default {
   install: (app) => {
     register(app)
     console.log(`
-       欢迎使用 Gin-Vue-Admin
+       欢迎使用 Pay-Api-Admin
        当前版本:v${packageInfo.version}
        加群方式:微信：shouzi_1994 QQ群：622360840
        项目地址：https://github.com/flipped-aurora/gin-vue-admin
