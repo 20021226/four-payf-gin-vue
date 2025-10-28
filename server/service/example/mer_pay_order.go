@@ -39,7 +39,7 @@ func (merPayOrderService *MerPayOrderService) UpdateMerPayOrder(ctx context.Cont
 
 // GetMerPayOrder 根据id获取merPayOrder表记录
 // Author [yourname](https://github.com/yourname)
-func (merPayOrderService *MerPayOrderService) GetMerPayOrder(ctx context.Context, id string) (merPayOrder example.MerPayOrder, err error) {
+func (merPayOrderService *MerPayOrderService) GetMerPayOrder(ctx context.Context, id int64) (merPayOrder example.MerPayOrder, err error) {
 	err = global.GVA_DB.Where("id = ?", id).First(&merPayOrder).Error
 	return
 }

@@ -14,6 +14,7 @@ const (
 	MER_RICH_KEY       = "rich"
 
 	PAY_AMOUNT_USED_KEY = "pay_ammount_used"
+	PAY_SELECT_TASK_KEY = "pay_select_task"
 
 	PAY_ORDER_STATE_PENDING = "pending"
 

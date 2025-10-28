@@ -232,6 +232,13 @@ func (merUserApi *MerUserApi) DeleteMerUser(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	id := c.Query("id")
+	
+	// 在删除前停止对应的监控任务
+	if merUserId, err := strconv.ParseInt(id, 10, 64); err == nil {
+		payTask.GlobalTaskManager.StopMerUserTask(merUserId)
+		global.GVA_LOG.Info("已停止 MerUser 监控任务", zap.Int64("merUserId", merUserId))
+	}
+	
 	err := merUserService.DeleteMerUser(ctx, id)
 	if err != nil {
 		global.GVA_LOG.Error("删除失败!", zap.Error(err))
@@ -254,6 +261,15 @@ func (merUserApi *MerUserApi) DeleteMerUserByIds(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	ids := c.QueryArray("ids[]")
+	
+	// 在批量删除前停止对应的监控任务
+	for _, id := range ids {
+		if merUserId, err := strconv.ParseInt(id, 10, 64); err == nil {
+			payTask.GlobalTaskManager.StopMerUserTask(merUserId)
+			global.GVA_LOG.Info("已停止 MerUser 监控任务", zap.Int64("merUserId", merUserId))
+		}
+	}
+	
 	err := merUserService.DeleteMerUserByIds(ctx, ids)
 	if err != nil {
 		global.GVA_LOG.Error("批量删除失败!", zap.Error(err))
@@ -287,6 +303,13 @@ func (merUserApi *MerUserApi) UpdateMerUser(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
+	
+	// 如果状态被设置为禁用，停止对应的监控任务
+	if merUser.State != nil && !*merUser.State && merUser.Id != nil {
+		payTask.GlobalTaskManager.StopMerUserTask(*merUser.Id)
+		global.GVA_LOG.Info("MerUser 状态变为禁用，已停止监控任务", zap.Int64("merUserId", *merUser.Id))
+	}
+	
 	err = merUserService.UpdateMerUser(ctx, merUser)
 	if err != nil {
 		global.GVA_LOG.Error("更新失败!", zap.Error(err))
@@ -537,9 +560,26 @@ func (merUserApi *MerUserApi) GetPayQrCode(c *gin.Context) {
 		}
 		startTime, endTime := utils.GetTimeRange(ttl)
 
+		taskRedisKey := fmt.Sprintf("%s:%d:%s", global.PAY_SELECT_TASK_KEY, currentMerUser.Id)
+		if ok, _ := global.GVA_REDIS.Exists(ctx, taskRedisKey).Result(); ok == 1 {
+			global.GVA_LOG.Warn("用户已在任务队列中", zap.Int64("currentMerUser.Id", *currentMerUser.Id))
+			//response.StdFail(c, fmt.Sprintf("用户 %d 已在处理中，请稍后重试", userID))
+			//return
+		} else {
+			ok, err := global.GVA_REDIS.SetNX(ctx, taskRedisKey, 1, ttl).Result()
+			if err != nil {
+				global.GVA_LOG.Error("缓存订单上下文失败!", zap.Error(err))
+				response.StdFail(c, "系统繁忙，请稍后重试")
+				return
+			} else if ok {
+				global.GVA_LOG.Info("用户已在任务队列中", zap.Int64("currentMerUser.Id", *currentMerUser.Id))
+			}
+
+		}
+
 		// 构建 Redis 键：pay_amount_used:userID:amount
-		redisKey := fmt.Sprintf("%s:%d:%s", global.PAY_AMOUNT_USED_KEY, userID, amountStr)
-		ok, err := global.GVA_REDIS.SetNX(ctx, redisKey, 1, ttl).Result()
+		redisKey := fmt.Sprintf("%s:%d:%s", global.PAY_AMOUNT_USED_KEY, currentMerUser.Id, amountStr)
+		ok, err := global.GVA_REDIS.SetNX(ctx, redisKey, payOrder.Id, ttl).Result()
 		if err != nil {
 			global.GVA_LOG.Error("缓存订单上下文失败!", zap.Error(err))
 			response.StdFail(c, "系统繁忙，请稍后重试")
@@ -548,24 +588,17 @@ func (merUserApi *MerUserApi) GetPayQrCode(c *gin.Context) {
 			response.StdFail(c, fmt.Sprintf("金额 %s 及其相近金额范围内的所有金额都已被占用，请稍后重试或使用其他金额", amountStr))
 			return
 		} else {
-			// Redis SetNX 成功，创建并启动订单监控任务
-			monitorTask := payTask.NewOrderMonitorTask(
-				userID,
-				amountStr,
-				redisKey,
-				ttl,
-				*currentMerUser.MerType,
-				*paymentQrCodeResponse.OrderId,
+			// Redis SetNX 成功，启动或获取 meruser 的全局监控任务
+			merUserTask := payTask.GlobalTaskManager.StartMerUserTask(
 				*currentMerUser.Id,
-				startTime,
-				endTime,
 				reqParms.CallbackUrl,
-				*payOrder.Id, // 使用插入后获取的订单 ID
+				*currentMerUser.MerType,
 			)
-			monitorTask.Start()
 
-			global.GVA_LOG.Info("订单创建成功，监控任务已启动",
+			global.GVA_LOG.Info("订单创建成功，MerUser 监控任务已启动或已存在",
 				zap.Uint("userID", userID),
+				zap.Int64("merUserId", *currentMerUser.Id),
+				zap.String("taskID", merUserTask.TaskID),
 				zap.String("amount", amountStr),
 				zap.String("redisKey", redisKey),
 				zap.Duration("ttl", ttl))
